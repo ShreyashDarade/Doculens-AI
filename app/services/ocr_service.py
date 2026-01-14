@@ -142,11 +142,10 @@ class OCRService:
         
         if resolved_lang not in self._ocr_instances:
             logger.info(f"Initializing PaddleOCR for language: {resolved_lang}")
+            # Note: use_gpu and show_log parameters removed - PaddleOCR 3.x doesn't support them
             self._ocr_instances[resolved_lang] = PaddleOCR(
                 use_angle_cls=True,
                 lang=resolved_lang,
-                use_gpu=self.use_gpu,
-                show_log=False,
             )
         return self._ocr_instances[resolved_lang]
     
@@ -177,37 +176,81 @@ class OCRService:
             image = np.array(Image.open(image))
         
         try:
-            result = ocr.ocr(image, cls=True)
+            # PaddleOCR 3.x uses predict() method instead of ocr()
+            result = ocr.predict(image)
+        except TypeError:
+            # Fallback for older API
+            try:
+                result = ocr.ocr(image)
+            except Exception as e:
+                logger.error(f"OCR failed: {e}")
+                return []
         except Exception as e:
             logger.error(f"OCR failed: {e}")
             return []
         
-        if not result or not result[0]:
+        if not result:
             return []
         
         text_blocks = []
-        for line in result[0]:
-            bbox_points = line[0]  # [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
-            text = line[1][0]
-            confidence = float(line[1][1])
-            
-            # Convert to simple bounding box
-            x_coords = [p[0] for p in bbox_points]
-            y_coords = [p[1] for p in bbox_points]
-            
-            bounding_box = BoundingBox(
-                x=min(x_coords),
-                y=min(y_coords),
-                width=max(x_coords) - min(x_coords),
-                height=max(y_coords) - min(y_coords)
-            )
-            
-            text_blocks.append({
-                "text": text,
-                "confidence": confidence,
-                "bounding_box": bounding_box,
-                "bbox_points": bbox_points,
-            })
+        
+        # Handle PaddleOCR 3.x result format
+        # Result is a list of dictionaries with 'rec_texts', 'rec_scores', 'dt_polys'
+        if isinstance(result, list) and len(result) > 0:
+            if isinstance(result[0], dict):
+                # New format: [{'rec_texts': [...], 'rec_scores': [...], 'dt_polys': [...]}]
+                for page_result in result:
+                    texts = page_result.get('rec_texts', [])
+                    scores = page_result.get('rec_scores', [])
+                    polys = page_result.get('dt_polys', [])
+                    
+                    for i, text in enumerate(texts):
+                        confidence = float(scores[i]) if i < len(scores) else 1.0
+                        bbox_points = polys[i] if i < len(polys) else [[0,0], [0,0], [0,0], [0,0]]
+                        
+                        # Convert to simple bounding box
+                        x_coords = [p[0] for p in bbox_points]
+                        y_coords = [p[1] for p in bbox_points]
+                        
+                        bounding_box = BoundingBox(
+                            x=min(x_coords) if x_coords else 0,
+                            y=min(y_coords) if y_coords else 0,
+                            width=max(x_coords) - min(x_coords) if x_coords else 0,
+                            height=max(y_coords) - min(y_coords) if y_coords else 0
+                        )
+                        
+                        text_blocks.append({
+                            "text": text,
+                            "confidence": confidence,
+                            "bounding_box": bounding_box,
+                            "bbox_points": bbox_points,
+                        })
+            elif isinstance(result[0], list):
+                # Old format: [[[box], (text, score)], ...]
+                for page in result:
+                    if page is None:
+                        continue
+                    for line in page:
+                        bbox_points = line[0]
+                        text = line[1][0]
+                        confidence = float(line[1][1])
+                        
+                        x_coords = [p[0] for p in bbox_points]
+                        y_coords = [p[1] for p in bbox_points]
+                        
+                        bounding_box = BoundingBox(
+                            x=min(x_coords),
+                            y=min(y_coords),
+                            width=max(x_coords) - min(x_coords),
+                            height=max(y_coords) - min(y_coords)
+                        )
+                        
+                        text_blocks.append({
+                            "text": text,
+                            "confidence": confidence,
+                            "bounding_box": bounding_box,
+                            "bbox_points": bbox_points,
+                        })
         
         return text_blocks
     

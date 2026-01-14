@@ -1,18 +1,17 @@
-"""Document AI Parser - API Routes"""
+"""Document AI Parser - API Routes (Simplified)"""
 import logging
 import os
 import shutil
 import uuid
+import time
 from pathlib import Path
 from typing import Optional, List
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.models.document import (
-    UploadResponse, SearchRequest, SearchResponse, HealthResponse
-)
+from app.models.document import HealthResponse, SearchRequest, SearchResponse
 from app.api.dependencies import validate_file, UPLOAD_DIR
 from app.pipeline.document_pipeline import get_document_pipeline
 from app.services.elasticsearch_service import get_elasticsearch_service
@@ -35,18 +34,37 @@ async def health_check():
     )
 
 
-@router.post("/documents/upload", response_model=UploadResponse)
-async def upload_document(
+@router.post("/parse")
+async def parse_document(
     file: UploadFile = File(...),
-    language: str = Query("en", description="OCR language (en, hi, mr, ta, te)"),
-    chunking_strategy: str = Query("semantic", description="Chunking strategy: semantic, fixed, layout"),
+    language: str = Query("en", description="OCR language code (en, hi, bn, te, mr, ta, gu, kn, ml, pa, ur)"),
+    chunking_strategy: str = Query("semantic", description="Chunking: semantic, fixed, layout"),
+    include_raw_text: bool = Query(True, description="Include raw extracted text"),
+    include_chunks: bool = Query(True, description="Include text chunks with linkage"),
+    store_in_elasticsearch: bool = Query(False, description="Also store in Elasticsearch for search"),
     validated_file: UploadFile = Depends(validate_file)
 ):
     """
-    Upload and process a document.
+    🔥 MAIN API: Parse document and return complete extracted data.
     
-    Extracts text, tables, key-value pairs, and stores in Elasticsearch.
+    Upload a file and get everything in one response:
+    - OCR extracted text (22+ Indian languages)
+    - Key-value pairs (name, date, case number, etc.)
+    - Tables with cell data
+    - Embedded data (hyperlinks, emails, phone numbers, annotations)
+    - Smart chunks with bidirectional linkage for RAG
+    - Document metadata
+    
+    **Supported Languages:**
+    en, hi, bn, te, mr, ta, gu, kn, ml, pa, ur, ne, or, as, sa, kok, mai, doi, sd, ks, mni, sat
+    
+    **Chunking Strategies:**
+    - `semantic`: By paragraphs and sections (default)
+    - `fixed`: Fixed size with 10% overlap
+    - `layout`: Respects headers, tables, figures
     """
+    start_time = time.time()
+    
     # Save uploaded file
     file_id = uuid.uuid4().hex[:16]
     file_ext = file.filename.rsplit('.', 1)[-1].lower()
@@ -58,268 +76,182 @@ async def upload_document(
         
         # Process document
         pipeline = get_document_pipeline()
-        processed_doc = pipeline.process_and_store(
-            file_path=file_path,
-            filename=file.filename,
-            lang=language,
-            chunking_strategy=chunking_strategy
-        )
         
-        return UploadResponse(
-            document_id=processed_doc.metadata.document_id,
-            filename=processed_doc.metadata.filename,
-            status="processed",
-            page_count=processed_doc.metadata.page_count,
-            chunk_count=len(processed_doc.chunks),
-            processing_time_ms=processed_doc.metadata.processing_time_ms,
-            key_value_pairs_count=len(processed_doc.metadata.key_value_pairs),
-            tables_count=len(processed_doc.metadata.tables),
-            links_count=len(processed_doc.metadata.embedded_links),
-            emails_count=len(processed_doc.metadata.embedded_emails),
-            annotations_count=len(processed_doc.metadata.annotations),
-        )
+        if store_in_elasticsearch:
+            processed_doc = pipeline.process_and_store(
+                file_path=file_path,
+                filename=file.filename,
+                lang=language,
+                chunking_strategy=chunking_strategy
+            )
+        else:
+            processed_doc = pipeline.process_document(
+                file_path=file_path,
+                filename=file.filename,
+                lang=language,
+                chunking_strategy=chunking_strategy
+            )
+        
+        processing_time_ms = int((time.time() - start_time) * 1000)
+        
+        # Build comprehensive response
+        response = {
+            "status": "success",
+            "document_id": processed_doc.metadata.document_id,
+            "filename": processed_doc.metadata.filename,
+            "processing_time_ms": processing_time_ms,
+            
+            # Document info
+            "document_info": {
+                "file_type": processed_doc.metadata.file_type,
+                "file_size_bytes": processed_doc.metadata.file_size_bytes,
+                "page_count": processed_doc.metadata.page_count,
+                "language_detected": processed_doc.metadata.language_detected,
+                "languages": processed_doc.metadata.languages,
+            },
+            
+            # PDF metadata
+            "pdf_metadata": {
+                "title": processed_doc.metadata.pdf_title,
+                "author": processed_doc.metadata.pdf_author,
+                "subject": processed_doc.metadata.pdf_subject,
+                "keywords": processed_doc.metadata.pdf_keywords,
+                "creator": processed_doc.metadata.pdf_creator,
+                "has_forms": processed_doc.metadata.has_forms,
+                "has_toc": processed_doc.metadata.has_toc,
+                "is_encrypted": processed_doc.metadata.is_encrypted,
+            },
+            
+            # Extracted key-value pairs
+            "key_value_pairs": [
+                {
+                    "key": kv.key,
+                    "value": kv.value,
+                    "confidence": kv.confidence,
+                    "page_number": kv.page_number,
+                }
+                for kv in processed_doc.metadata.key_value_pairs
+            ],
+            
+            # Extracted tables
+            "tables": [
+                {
+                    "table_id": table.table_id,
+                    "page_number": table.page_number,
+                    "rows": table.rows,
+                    "cols": table.cols,
+                    "headers": table.headers,
+                    "data": table.data_as_dict,
+                    "confidence": table.confidence,
+                }
+                for table in processed_doc.metadata.tables
+            ],
+            
+            # Embedded data
+            "embedded_data": {
+                "links": processed_doc.metadata.embedded_links,
+                "emails": processed_doc.metadata.embedded_emails,
+                "phone_numbers": processed_doc.metadata.embedded_phones,
+                "annotations": processed_doc.metadata.annotations,
+                "table_of_contents": processed_doc.metadata.table_of_contents,
+                "form_fields": processed_doc.metadata.form_fields,
+            },
+            
+            # Summary counts
+            "extraction_summary": {
+                "key_value_pairs_count": len(processed_doc.metadata.key_value_pairs),
+                "tables_count": len(processed_doc.metadata.tables),
+                "chunks_count": len(processed_doc.chunks),
+                "links_count": len(processed_doc.metadata.embedded_links),
+                "emails_count": len(processed_doc.metadata.embedded_emails),
+                "phones_count": len(processed_doc.metadata.embedded_phones),
+                "annotations_count": len(processed_doc.metadata.annotations),
+            },
+        }
+        
+        # Optional: include raw text
+        if include_raw_text:
+            response["raw_text"] = processed_doc.raw_text
+        
+        # Optional: include chunks with linkage
+        if include_chunks:
+            response["chunks"] = [
+                {
+                    "chunk_id": chunk.chunk_id,
+                    "chunk_index": chunk.chunk_index,
+                    "page_number": chunk.page_number,
+                    "content": chunk.content,
+                    "content_type": chunk.content_type.value,
+                    "confidence_score": chunk.confidence_score,
+                    # Bidirectional linkage for RAG
+                    "prev_chunk_id": chunk.prev_chunk_id,
+                    "next_chunk_id": chunk.next_chunk_id,
+                    "parent_section": chunk.parent_section,
+                    "section_hierarchy": chunk.section_hierarchy,
+                    "sibling_chunks": chunk.sibling_chunks,
+                    "is_continuation": chunk.is_continuation,
+                    "continues_to_next": chunk.continues_to_next,
+                }
+                for chunk in processed_doc.chunks
+            ]
+        
+        return response
         
     except Exception as e:
-        logger.error(f"Document processing failed: {e}")
+        logger.error(f"Document parsing failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
     finally:
         # Clean up uploaded file
-        if file_path.exists():
-            os.remove(file_path)
-
-
-@router.post("/documents/batch", response_model=List[UploadResponse])
-async def batch_upload(
-    files: List[UploadFile] = File(...),
-    language: str = Query("en"),
-    chunking_strategy: str = Query("semantic")
-):
-    """Upload and process multiple documents."""
-    results = []
-    
-    for file in files:
-        try:
-            result = await upload_document(
-                file=file,
-                language=language,
-                chunking_strategy=chunking_strategy,
-                validated_file=file
-            )
-            results.append(result)
-        except Exception as e:
-            logger.error(f"Failed to process {file.filename}: {e}")
-            results.append(UploadResponse(
-                document_id="",
-                filename=file.filename,
-                status=f"failed: {str(e)}",
-                page_count=0,
-                chunk_count=0,
-                processing_time_ms=0,
-                key_value_pairs_count=0,
-                tables_count=0
-            ))
-    
-    return results
-
-
-@router.get("/documents/{document_id}")
-async def get_document(document_id: str):
-    """Get document metadata by ID."""
-    es_service = get_elasticsearch_service()
-    metadata = es_service.get_document(document_id)
-    
-    if not metadata:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    return metadata.model_dump()
-
-
-@router.get("/documents/{document_id}/chunks")
-async def get_document_chunks(
-    document_id: str,
-    page: int = Query(1, ge=1),
-    size: int = Query(50, ge=1, le=100)
-):
-    """Get all chunks for a document with linkage information."""
-    es_service = get_elasticsearch_service()
-    chunks = es_service.get_chunks(document_id)
-    
-    if not chunks:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    # Paginate
-    start = (page - 1) * size
-    end = start + size
-    paginated = chunks[start:end]
-    
-    return {
-        "document_id": document_id,
-        "total_chunks": len(chunks),
-        "page": page,
-        "size": size,
-        "chunks": paginated
-    }
-
-
-@router.get("/documents/{document_id}/key-values")
-async def get_document_key_values(document_id: str):
-    """Get extracted key-value pairs for a document."""
-    es_service = get_elasticsearch_service()
-    key_values = es_service.get_key_values(document_id)
-    
-    return {
-        "document_id": document_id,
-        "count": len(key_values),
-        "key_value_pairs": key_values
-    }
-
-
-@router.get("/documents/{document_id}/tables")
-async def get_document_tables(document_id: str):
-    """Get extracted tables for a document."""
-    es_service = get_elasticsearch_service()
-    tables = es_service.get_tables(document_id)
-    
-    return {
-        "document_id": document_id,
-        "count": len(tables),
-        "tables": tables
-    }
-
-
-@router.get("/documents/{document_id}/embedded")
-async def get_document_embedded(document_id: str):
-    """Get all embedded data from a document (links, emails, phones, annotations)."""
-    es_service = get_elasticsearch_service()
-    
-    metadata = es_service.get_document(document_id)
-    if not metadata:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    return {
-        "document_id": document_id,
-        "links": metadata.embedded_links,
-        "emails": metadata.embedded_emails,
-        "phone_numbers": metadata.embedded_phones,
-        "annotations": metadata.annotations,
-        "table_of_contents": metadata.table_of_contents,
-        "form_fields": metadata.form_fields,
-        "pdf_metadata": {
-            "title": metadata.pdf_title,
-            "author": metadata.pdf_author,
-            "subject": metadata.pdf_subject,
-            "keywords": metadata.pdf_keywords,
-            "creator": metadata.pdf_creator,
-            "has_forms": metadata.has_forms,
-            "has_toc": metadata.has_toc,
-            "is_encrypted": metadata.is_encrypted,
-        },
-        "counts": {
-            "links": len(metadata.embedded_links),
-            "emails": len(metadata.embedded_emails),
-            "phones": len(metadata.embedded_phones),
-            "annotations": len(metadata.annotations),
-        }
-    }
-
-
-@router.get("/documents/{document_id}/metadata")
-async def get_document_metadata(document_id: str):
-    """Get full document metadata including all extracted data."""
-    es_service = get_elasticsearch_service()
-    
-    metadata = es_service.get_document(document_id)
-    if not metadata:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    key_values = es_service.get_key_values(document_id)
-    tables = es_service.get_tables(document_id)
-    chunks = es_service.get_chunks(document_id)
-    
-    return {
-        "metadata": metadata.model_dump(),
-        "key_value_pairs": key_values,
-        "tables": tables,
-        "chunk_summary": {
-            "total": len(chunks),
-            "by_type": _count_by_type(chunks),
-            "by_page": _count_by_page(chunks)
-        }
-    }
+        for attempt in range(3):
+            try:
+                if file_path.exists():
+                    os.remove(file_path)
+                break
+            except PermissionError:
+                time.sleep(0.5)
+            except Exception:
+                break
 
 
 @router.post("/search", response_model=SearchResponse)
 async def search_documents(request: SearchRequest):
-    """Full-text search across all documents."""
+    """
+    Full-text search across all stored documents.
+    
+    Note: Documents must be parsed with `store_in_elasticsearch=true` to be searchable.
+    """
     es_service = get_elasticsearch_service()
     return es_service.search(request)
 
 
-@router.get("/documents/{document_id}/chunk/{chunk_id}/context")
-async def get_chunk_context(document_id: str, chunk_id: str, window: int = Query(2, ge=1, le=5)):
-    """
-    Get a chunk with its surrounding context.
-    
-    Returns the chunk plus previous/next chunks based on linkage.
-    """
-    es_service = get_elasticsearch_service()
-    all_chunks = es_service.get_chunks(document_id)
-    
-    if not all_chunks:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    # Find the target chunk
-    target_idx = None
-    for i, chunk in enumerate(all_chunks):
-        if chunk["chunk_id"] == chunk_id:
-            target_idx = i
-            break
-    
-    if target_idx is None:
-        raise HTTPException(status_code=404, detail="Chunk not found")
-    
-    # Get context window
-    start_idx = max(0, target_idx - window)
-    end_idx = min(len(all_chunks), target_idx + window + 1)
-    
-    context_chunks = all_chunks[start_idx:end_idx]
-    
+@router.get("/languages")
+async def get_supported_languages():
+    """Get list of all supported OCR languages."""
     return {
-        "document_id": document_id,
-        "target_chunk_id": chunk_id,
-        "target_chunk_index": target_idx,
-        "window": window,
-        "context_chunks": context_chunks,
-        "section_hierarchy": all_chunks[target_idx].get("section_hierarchy", [])
+        "supported_languages": [
+            {"code": "en", "name": "English", "status": "full"},
+            {"code": "hi", "name": "Hindi", "status": "full"},
+            {"code": "bn", "name": "Bengali", "status": "full"},
+            {"code": "te", "name": "Telugu", "status": "full"},
+            {"code": "mr", "name": "Marathi", "status": "full"},
+            {"code": "ta", "name": "Tamil", "status": "full"},
+            {"code": "gu", "name": "Gujarati", "status": "full"},
+            {"code": "kn", "name": "Kannada", "status": "full"},
+            {"code": "ml", "name": "Malayalam", "status": "full"},
+            {"code": "pa", "name": "Punjabi", "status": "full"},
+            {"code": "ur", "name": "Urdu", "status": "full"},
+            {"code": "ne", "name": "Nepali", "status": "full"},
+            {"code": "or", "name": "Odia", "status": "fallback", "fallback_to": "te"},
+            {"code": "as", "name": "Assamese", "status": "fallback", "fallback_to": "bn"},
+            {"code": "sa", "name": "Sanskrit", "status": "fallback", "fallback_to": "hi"},
+            {"code": "kok", "name": "Konkani", "status": "fallback", "fallback_to": "mr"},
+            {"code": "mai", "name": "Maithili", "status": "fallback", "fallback_to": "hi"},
+            {"code": "doi", "name": "Dogri", "status": "fallback", "fallback_to": "hi"},
+            {"code": "sd", "name": "Sindhi", "status": "fallback", "fallback_to": "ur"},
+            {"code": "ks", "name": "Kashmiri", "status": "fallback", "fallback_to": "ur"},
+            {"code": "mni", "name": "Manipuri", "status": "fallback", "fallback_to": "bn"},
+            {"code": "sat", "name": "Santali", "status": "limited", "fallback_to": "en"},
+        ],
+        "total": 22
     }
-
-
-@router.delete("/documents/{document_id}")
-async def delete_document(document_id: str):
-    """Delete a document and all its chunks."""
-    es_service = get_elasticsearch_service()
-    success = es_service.delete_document(document_id)
-    
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to delete document")
-    
-    return {"status": "deleted", "document_id": document_id}
-
-
-def _count_by_type(chunks: list) -> dict:
-    """Count chunks by content type."""
-    counts = {}
-    for chunk in chunks:
-        content_type = chunk.get("content_type", "unknown")
-        counts[content_type] = counts.get(content_type, 0) + 1
-    return counts
-
-
-def _count_by_page(chunks: list) -> dict:
-    """Count chunks by page number."""
-    counts = {}
-    for chunk in chunks:
-        page = str(chunk.get("page_number", 0))
-        counts[page] = counts.get(page, 0) + 1
-    return counts
