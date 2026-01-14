@@ -6,10 +6,10 @@
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
 </p>
 
-<h1 align="center">🔍 DocuLens AI</h1>
+<h1 align="center">🔍 DocuLens AI(For Indian Legal Documents)</h1>
 
 <p align="center">
-  <strong>High-accuracy document AI parser with OCR, table extraction, and 22+ Indian language support</strong>
+  <strong>High-accuracy document AI parser (For Indian Legal Documents) with OCR, table extraction, and 22+ Indian language support</strong>
 </p>
 
 <p align="center">
