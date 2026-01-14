@@ -122,8 +122,8 @@ Full-text search with:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/doculens-ai.git
-cd doculens-ai
+git clone https://github.com/ShreyashDarade/Doculens-AI.git
+cd Doculens-AI
 ```
 
 ### 2. Configure Environment
