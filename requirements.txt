@@ -1,0 +1,34 @@
+# FastAPI
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# OCR & Document Processing
+paddleocr
+paddlepaddle
+# layoutparser[effdet]==0.3.4
+opencv-python-headless==4.9.0.80
+Pillow==10.2.0
+
+# PDF Processing
+pymupdf==1.23.8
+pdfplumber==0.10.3
+camelot-py[cv]==0.11.0
+
+# Elasticsearch
+elasticsearch==8.12.0
+
+# Data Models
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Utilities
+python-dotenv==1.0.0
+aiofiles==23.2.1
+python-magic==0.4.27
+
+# NLP for key-value extraction
+spacy==3.7.2
+
+# Logging
+structlog==24.1.0

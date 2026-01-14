@@ -1,0 +1,779 @@
+{
+    "info": {
+        "name": "DocuLens AI - Document Parser",
+        "description": "High-accuracy document AI parser with OCR, table extraction, key-value extraction, embedded data extraction, and Elasticsearch storage. Supports 22+ Indian languages.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8000",
+            "type": "string"
+        },
+        {
+            "key": "document_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "chunk_id",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "🏥 Health & Info",
+            "item": [
+                {
+                    "name": "Root Info",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                ""
+                            ]
+                        },
+                        "description": "Get API information and version"
+                    }
+                },
+                {
+                    "name": "Health Check",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/health",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "health"
+                            ]
+                        },
+                        "description": "Check API and Elasticsearch health status"
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status is healthy', function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.status).to.be.oneOf(['healthy', 'degraded']);",
+                                    "});",
+                                    "",
+                                    "pm.test('Elasticsearch connected', function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.elasticsearch).to.eql('connected');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "📤 Document Upload",
+            "item": [
+                {
+                    "name": "Upload Document (English)",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "file",
+                                    "type": "file",
+                                    "src": "",
+                                    "description": "PDF, PNG, JPG, TIFF, or BMP file"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/documents/upload?language=en&chunking_strategy=semantic",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "documents",
+                                "upload"
+                            ],
+                            "query": [
+                                {
+                                    "key": "language",
+                                    "value": "en",
+                                    "description": "OCR language code"
+                                },
+                                {
+                                    "key": "chunking_strategy",
+                                    "value": "semantic",
+                                    "description": "semantic, fixed, or layout"
+                                }
+                            ]
+                        },
+                        "description": "Upload and process a document with English OCR"
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Document processed successfully', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.status).to.eql('processed');",
+                                    "    pm.collectionVariables.set('document_id', jsonData.document_id);",
+                                    "});",
+                                    "",
+                                    "pm.test('Has embedded data counts', function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData).to.have.property('links_count');",
+                                    "    pm.expect(jsonData).to.have.property('emails_count');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Upload Document (Hindi)",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "file",
+                                    "type": "file",
+                                    "src": ""
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/documents/upload?language=hi&chunking_strategy=layout",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "documents",
+                                "upload"
+                            ],
+                            "query": [
+                                {
+                                    "key": "language",
+                                    "value": "hi"
+                                },
+                                {
+                                    "key": "chunking_strategy",
+                                    "value": "layout"
+                                }
+                            ]
+                        },
+                        "description": "Upload and process a Hindi document with layout-aware chunking"
+                    }
+                },
+                {
+                    "name": "Upload Document (Bengali)",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "file",
+                                    "type": "file",
+                                    "src": ""
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/documents/upload?language=bn&chunking_strategy=semantic",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "documents",
+                                "upload"
+                            ],
+                            "query": [
+                                {
+                                    "key": "language",
+                                    "value": "bn"
+                                },
+                                {
+                                    "key": "chunking_strategy",
+                                    "value": "semantic"
+                                }
+                            ]
+                        },
+                        "description": "Upload and process a Bengali document"
+                    }
+                },
+                {
+                    "name": "Upload Document (Tamil)",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "file",
+                                    "type": "file",
+                                    "src": ""
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/documents/upload?language=ta&chunking_strategy=semantic",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "documents",
+                                "upload"
+                            ],
+                            "query": [
+                                {
+                                    "key": "language",
+                                    "value": "ta"
+                                },
+                                {
+                                    "key": "chunking_strategy",
+                                    "value": "semantic"
+                                }
+                            ]
+                        },
+                        "description": "Upload and process a Tamil document"
+                    }
+                },
+                {
+                    "name": "Upload Document (Fixed Chunking)",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "file",
+                                    "type": "file",
+                                    "src": ""
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/documents/upload?language=en&chunking_strategy=fixed",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "documents",
+                                "upload"
+                            ],
+                            "query": [
+                                {
+                                    "key": "language",
+                                    "value": "en"
+                                },
+                                {
+                                    "key": "chunking_strategy",
+                                    "value": "fixed"
+                                }
+                            ]
+                        },
+                        "description": "Upload with fixed-size chunking (512 tokens with 10% overlap)"
+                    }
+                },
+                {
+                    "name": "Batch Upload",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "files",
+                                    "type": "file",
+                                    "src": []
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/documents/batch?language=en&chunking_strategy=semantic",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "documents",
+                                "batch"
+                            ],
+                            "query": [
+                                {
+                                    "key": "language",
+                                    "value": "en"
+                                },
+                                {
+                                    "key": "chunking_strategy",
+                                    "value": "semantic"
+                                }
+                            ]
+                        },
+                        "description": "Upload and process multiple documents at once"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "📄 Document Retrieval",
+            "item": [
+                {
+                    "name": "Get Document",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/documents/{{document_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "documents",
+                                "{{document_id}}"
+                            ]
+                        },
+                        "description": "Get document metadata by ID"
+                    }
+                },
+                {
+                    "name": "Get Document Chunks",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/documents/{{document_id}}/chunks?page=1&size=50",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "documents",
+                                "{{document_id}}",
+                                "chunks"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1",
+                                    "description": "Page number (1-indexed)"
+                                },
+                                {
+                                    "key": "size",
+                                    "value": "50",
+                                    "description": "Chunks per page (max 100)"
+                                }
+                            ]
+                        },
+                        "description": "Get all chunks for a document with bidirectional linkage"
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Chunks have linkage', function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    if (jsonData.chunks && jsonData.chunks.length > 1) {",
+                                    "        pm.expect(jsonData.chunks[0]).to.have.property('next_chunk_id');",
+                                    "        pm.expect(jsonData.chunks[0]).to.have.property('section_hierarchy');",
+                                    "        pm.collectionVariables.set('chunk_id', jsonData.chunks[0].chunk_id);",
+                                    "    }",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Get Full Metadata",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/documents/{{document_id}}/metadata",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "documents",
+                                "{{document_id}}",
+                                "metadata"
+                            ]
+                        },
+                        "description": "Get full document metadata with chunk statistics"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "🔑 Key-Value Pairs",
+            "item": [
+                {
+                    "name": "Get Key-Value Pairs",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/documents/{{document_id}}/key-values",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "documents",
+                                "{{document_id}}",
+                                "key-values"
+                            ]
+                        },
+                        "description": "Get all extracted key-value pairs (name, date, amount, case number, etc.)"
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Key-value pairs returned', function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData).to.have.property('key_value_pairs');",
+                                    "    pm.expect(jsonData).to.have.property('count');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "📊 Tables",
+            "item": [
+                {
+                    "name": "Get Extracted Tables",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/documents/{{document_id}}/tables",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "documents",
+                                "{{document_id}}",
+                                "tables"
+                            ]
+                        },
+                        "description": "Get all extracted tables with cell data and headers"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "📎 Embedded Data",
+            "item": [
+                {
+                    "name": "Get All Embedded Data",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/documents/{{document_id}}/embedded",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "documents",
+                                "{{document_id}}",
+                                "embedded"
+                            ]
+                        },
+                        "description": "Get hyperlinks, emails, phone numbers, annotations, TOC, and form fields"
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Embedded data structure', function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData).to.have.property('links');",
+                                    "    pm.expect(jsonData).to.have.property('emails');",
+                                    "    pm.expect(jsonData).to.have.property('phone_numbers');",
+                                    "    pm.expect(jsonData).to.have.property('annotations');",
+                                    "    pm.expect(jsonData).to.have.property('table_of_contents');",
+                                    "    pm.expect(jsonData).to.have.property('form_fields');",
+                                    "    pm.expect(jsonData).to.have.property('pdf_metadata');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "🔗 Chunk Context",
+            "item": [
+                {
+                    "name": "Get Chunk with Context",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/documents/{{document_id}}/chunk/{{chunk_id}}/context?window=2",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "documents",
+                                "{{document_id}}",
+                                "chunk",
+                                "{{chunk_id}}",
+                                "context"
+                            ],
+                            "query": [
+                                {
+                                    "key": "window",
+                                    "value": "2",
+                                    "description": "Number of surrounding chunks (1-5)"
+                                }
+                            ]
+                        },
+                        "description": "Get a chunk with surrounding context for RAG applications"
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Context chunks returned', function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData).to.have.property('context_chunks');",
+                                    "    pm.expect(jsonData).to.have.property('section_hierarchy');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "🔍 Search",
+            "item": [
+                {
+                    "name": "Full-Text Search",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"query\": \"petitioner\",\n    \"page\": 1,\n    \"size\": 10\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/search",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "search"
+                            ]
+                        },
+                        "description": "Full-text search across all documents with fuzzy matching"
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Search results returned', function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData).to.have.property('results');",
+                                    "    pm.expect(jsonData).to.have.property('total');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Search in Specific Document",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"query\": \"case number\",\n    \"document_id\": \"{{document_id}}\",\n    \"page\": 1,\n    \"size\": 10\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/search",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "search"
+                            ]
+                        },
+                        "description": "Search within a specific document"
+                    }
+                },
+                {
+                    "name": "Search with Language Filter",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"query\": \"judgment\",\n    \"page\": 1,\n    \"size\": 10,\n    \"filters\": {\n        \"language_detected\": \"hi\"\n    }\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/search",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "search"
+                            ]
+                        },
+                        "description": "Search with language filter (e.g., Hindi documents only)"
+                    }
+                },
+                {
+                    "name": "Search Legal Documents",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"query\": \"writ petition supreme court\",\n    \"page\": 1,\n    \"size\": 10,\n    \"filters\": {\n        \"document_category\": \"legal\"\n    }\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/search",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "search"
+                            ]
+                        },
+                        "description": "Search for legal documents"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "🗑️ Delete",
+            "item": [
+                {
+                    "name": "Delete Document",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/documents/{{document_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "documents",
+                                "{{document_id}}"
+                            ]
+                        },
+                        "description": "Delete a document and all its chunks from Elasticsearch"
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Document deleted', function () {",
+                                    "    var jsonData = pm.response.json();",
+                                    "    pm.expect(jsonData.status).to.eql('deleted');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

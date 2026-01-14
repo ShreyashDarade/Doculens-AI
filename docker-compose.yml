@@ -1,0 +1,52 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.2.4
+    container_name: doc-ai-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q 'green\\|yellow'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - doc-ai-network
+
+  doc-ai-parser:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: doc-ai-parser
+    ports:
+      - "8000:8000"
+    environment:
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - ELASTICSEARCH_INDEX=documents
+      - OCR_LANGUAGE=en
+      - CHUNK_SIZE=512
+      - CHUNK_OVERLAP=0.1
+      - USE_GPU=false
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - doc-ai-network
+
+volumes:
+  elasticsearch_data:
+    driver: local
+
+networks:
+  doc-ai-network:
+    driver: bridge
