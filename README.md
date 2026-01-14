@@ -2,315 +2,172 @@
   <img src="https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python" alt="Python">
   <img src="https://img.shields.io/badge/FastAPI-0.104+-green?style=for-the-badge&logo=fastapi" alt="FastAPI">
   <img src="https://img.shields.io/badge/Elasticsearch-9.2.4-yellow?style=for-the-badge&logo=elasticsearch" alt="Elasticsearch">
-  <img src="https://img.shields.io/badge/Docker-Ready-blue?style=for-the-badge&logo=docker" alt="Docker">
+  <img src="https://img.shields.io/badge/PaddleOCR-3.x-orange?style=for-the-badge" alt="PaddleOCR">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License">
 </p>
 
 <h1 align="center">🔍 DocuLens AI</h1>
 
 <p align="center">
-  <strong>High-accuracy document AI parser with OCR, table extraction, and 22+ Indian language support</strong>
+  <strong>High-accuracy Document AI Parser with 22+ Indian Language OCR</strong>
 </p>
 
 <p align="center">
-  <a href="#-features">Features</a> •
   <a href="#-quick-start">Quick Start</a> •
-  <a href="#-api-reference">API</a> •
-  <a href="#-configuration">Configuration</a> •
-  <a href="#-architecture">Architecture</a>
+  <a href="#-api">API</a> •
+  <a href="#-features">Features</a> •
+  <a href="#-languages">Languages</a>
 </p>
-
----
-
-## ✨ Features
-
-### 🔤 Multi-Language OCR (22+ Indian Languages)
-
-Powered by **PaddleOCR** with state-of-the-art accuracy:
-
-| Status | Languages |
-|--------|-----------|
-| **Full Support** | English, Hindi, Bengali, Telugu, Marathi, Tamil, Gujarati, Kannada, Malayalam, Punjabi, Urdu, Nepali |
-| **Fallback Support** | Odia, Assamese, Sanskrit, Konkani, Maithili, Dogri, Sindhi, Kashmiri, Manipuri, Bodo |
-
-**Automatic script detection** for Devanagari, Bengali, Tamil, Telugu, Kannada, Malayalam, Gujarati, Gurmukhi, and Arabic scripts.
-
----
-
-### 📊 Intelligent Table Extraction
-
-Uses **Camelot** for 99%+ accuracy on PDF tables:
-
-- **Lattice mode**: Tables with visible borders/lines
-- **Stream mode**: Whitespace-separated tables
-- Outputs as JSON or structured dictionaries
-- Confidence scoring per table
-
----
-
-### 🔗 Smart Chunking with Bidirectional Linkage
-
-Every chunk maintains context awareness for RAG applications:
-
-```json
-{
-  "chunk_id": "chunk_abc123",
-  "prev_chunk_id": "chunk_xyz789",
-  "next_chunk_id": "chunk_def456",
-  "parent_section": "Chapter 1: Introduction",
-  "section_hierarchy": ["Document", "Chapter 1", "Section 1.1"],
-  "sibling_chunks": ["chunk_111", "chunk_222"],
-  "is_continuation": true,
-  "continues_to_next": true
-}
-```
-
-**Three chunking strategies:**
-- **Semantic**: By paragraphs and sections
-- **Fixed-size**: With configurable overlap (default 10%)
-- **Layout-aware**: Respects headers, tables, figures
-
----
-
-### 🔑 Key-Value Pair Extraction
-
-Extracts structured data with patterns in **22+ languages**:
-
-| Category | Fields |
-|----------|--------|
-| **Common** | Name, Date, Address, Phone, Email, Amount, Age, Gender |
-| **Legal (India)** | Case Number, Court, Judge, Petitioner, Respondent, FIR, Section, Police Station, District, State |
-| **Hindi Examples** | नाम, पता, तारीख, न्यायालय, याचिकाकर्ता |
-| **Bengali Examples** | নাম, ঠিকানা, তারিখ, আদালত |
-
----
-
-### 📎 Embedded PDF Data Extraction
-
-Extracts hidden metadata and embedded content:
-
-| Data Type | Description |
-|-----------|-------------|
-| **Hyperlinks** | URLs, mailto:, tel: links with anchor text |
-| **Email Addresses** | From links AND text (regex-based) |
-| **Phone Numbers** | Indian format (+91) and international |
-| **Annotations** | Comments, highlights, notes with author info |
-| **Table of Contents** | PDF bookmark structure |
-| **Form Fields** | Interactive PDF form values |
-| **PDF Metadata** | Title, Author, Creator, Keywords |
-
----
-
-### 🔍 Elasticsearch-Powered Search
-
-Full-text search with:
-- Fuzzy matching for typos
-- Highlighting of matched terms
-- Faceted filtering (language, document type, state)
-- Chunk-level search with context retrieval
 
 ---
 
 ## 🚀 Quick Start
 
-### Prerequisites
-
-- Docker & Docker Compose
-- 4GB+ RAM (8GB recommended for large documents)
-- (Optional) NVIDIA GPU for faster OCR
-
-### 1. Clone the Repository
+### 1. Start Services
 
 ```bash
-git clone https://github.com/yourusername/doculens-ai.git
-cd doculens-ai
+# Clone
+git clone https://github.com/ShreyashDarade/Doculens-AI.git
+cd Doculens-AI
+
+# Start Elasticsearch (Docker)
+docker run -d --name elasticsearch -p 9200:9200 \
+  -e "discovery.type=single-node" \
+  -e "xpack.security.enabled=false" \
+  docker.elastic.co/elasticsearch/elasticsearch:9.2.4
+
+# Install dependencies
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+pip install -r requirements.txt
+pip install paddlepaddle
+
+# Configure
+copy .env.example .env
+
+# Run
+python -m uvicorn app.main:app --reload --port 8000
 ```
 
-### 2. Configure Environment
+### 2. Parse a Document
 
 ```bash
-cp .env.example .env
-# Edit .env to customize settings
-```
-
-### 3. Start Services
-
-```bash
-docker-compose up -d
-```
-
-Wait for Elasticsearch to be ready:
-
-```bash
-# Check health
-curl http://localhost:9200/_cluster/health?pretty
-
-# Check API
-curl http://localhost:8000/api/v1/health
-```
-
-### 4. Upload Your First Document
-
-```bash
-curl -X POST "http://localhost:8000/api/v1/documents/upload" \
-  -F "file=@your_document.pdf" \
+curl -X POST "http://localhost:8000/api/v1/parse" \
+  -F "file=@document.pdf" \
   -F "language=en"
 ```
 
-### 5. Access the API
+### 3. View API Docs
 
-- **API Docs**: http://localhost:8000/docs
-- **Elasticsearch**: http://localhost:9200
+Open: **http://localhost:8000/docs**
 
 ---
 
-## 📖 API Reference
+## 🔥 API
 
-### Document Upload
+### `POST /api/v1/parse` — Main Endpoint
 
-```bash
-POST /api/v1/documents/upload
-```
+Upload a document and get complete parsed output in one response.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `file` | File | Required | PDF or image file |
+**Parameters:**
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `file` | File | Required | PDF, PNG, JPG, TIFF, BMP |
 | `language` | string | `en` | OCR language code |
 | `chunking_strategy` | string | `semantic` | `semantic`, `fixed`, `layout` |
+| `include_raw_text` | bool | `true` | Include full extracted text |
+| `include_chunks` | bool | `true` | Include smart chunks |
+| `store_in_elasticsearch` | bool | `false` | Store for later search |
 
 **Response:**
+
 ```json
 {
+  "status": "success",
   "document_id": "doc_abc123",
-  "filename": "contract.pdf",
-  "status": "processed",
-  "page_count": 15,
-  "chunk_count": 42,
   "processing_time_ms": 3500,
-  "key_value_pairs_count": 18,
-  "tables_count": 3,
-  "links_count": 12,
-  "emails_count": 5
+  
+  "document_info": {
+    "page_count": 5,
+    "file_type": "pdf",
+    "language_detected": "en"
+  },
+  
+  "key_value_pairs": [
+    {"key": "Name", "value": "John Doe", "confidence": 0.95},
+    {"key": "Date", "value": "14-01-2026", "confidence": 0.92}
+  ],
+  
+  "tables": [
+    {"table_id": "...", "rows": 5, "cols": 3, "data": [...]}
+  ],
+  
+  "embedded_data": {
+    "links": [{"url": "https://...", "text": "click here"}],
+    "emails": [{"email": "info@example.com"}],
+    "phone_numbers": [{"number": "+919876543210"}],
+    "annotations": [{"type": "Comment", "content": "..."}]
+  },
+  
+  "chunks": [
+    {
+      "chunk_id": "chunk_001",
+      "content": "...",
+      "prev_chunk_id": null,
+      "next_chunk_id": "chunk_002",
+      "section_hierarchy": ["Chapter 1", "Section 1.1"]
+    }
+  ],
+  
+  "raw_text": "Full extracted text..."
 }
 ```
 
+### Other Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/health` | GET | Health check |
+| `/api/v1/search` | POST | Search stored documents |
+| `/api/v1/languages` | GET | List supported languages |
+
 ---
 
-### Get Document Chunks
+## ✨ Features
+
+### 📄 Document Parsing
+- **OCR**: PaddleOCR v5 with 22+ Indian languages
+- **Tables**: Camelot extraction with 99%+ accuracy
+- **Key-Value Pairs**: Regex patterns for common & legal fields
+- **Embedded Data**: Links, emails, phones, annotations, TOC
+
+### 🔗 Smart Chunking
+- **Semantic**: By paragraphs and sections
+- **Fixed**: 512 tokens with 10% overlap
+- **Layout-aware**: Respects headers, tables, figures
+- **Bidirectional Linkage**: `prev_chunk_id`, `next_chunk_id`, `section_hierarchy`
+
+### 🔍 Search (Optional)
+- Elasticsearch-powered full-text search
+- Fuzzy matching, highlighting
+- Enable with `store_in_elasticsearch=true`
+
+---
+
+## 🌐 Supported Languages
+
+| Status | Languages |
+|--------|-----------|
+| **Full** | English, Hindi, Bengali, Telugu, Marathi, Tamil, Gujarati, Kannada, Malayalam, Punjabi, Urdu, Nepali |
+| **Fallback** | Odia→Telugu, Assamese→Bengali, Sanskrit→Hindi, Konkani→Marathi, Maithili→Hindi, Dogri→Hindi, Sindhi→Urdu, Kashmiri→Urdu, Manipuri→Bengali |
 
 ```bash
-GET /api/v1/documents/{document_id}/chunks?page=1&size=50
-```
+# Hindi document
+curl -X POST "http://localhost:8000/api/v1/parse" -F "file=@doc.pdf" -F "language=hi"
 
-Returns chunks with full linkage for context-aware retrieval.
-
----
-
-### Get Key-Value Pairs
-
-```bash
-GET /api/v1/documents/{document_id}/key-values
-```
-
-Returns all extracted structured data.
-
----
-
-### Get Embedded Data
-
-```bash
-GET /api/v1/documents/{document_id}/embedded
-```
-
-Returns hyperlinks, emails, phone numbers, annotations, TOC, and form fields.
-
----
-
-### Full-Text Search
-
-```bash
-POST /api/v1/search
-Content-Type: application/json
-
-{
-  "query": "petitioner appeal",
-  "page": 1,
-  "size": 10,
-  "filters": {
-    "language_detected": "hi"
-  }
-}
-```
-
----
-
-### Get Chunk with Context
-
-```bash
-GET /api/v1/documents/{document_id}/chunk/{chunk_id}/context?window=2
-```
-
-Returns the target chunk plus surrounding chunks for RAG context.
-
----
-
-## ⚙️ Configuration
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ELASTICSEARCH_URL` | `http://localhost:9200` | Elasticsearch endpoint |
-| `ELASTICSEARCH_INDEX` | `documents` | Index name |
-| `OCR_LANGUAGE` | `en` | Primary OCR language |
-| `CHUNK_SIZE` | `512` | Max tokens per chunk |
-| `CHUNK_OVERLAP` | `0.1` | Overlap ratio (10%) |
-| `USE_GPU` | `false` | Enable GPU acceleration |
-| `MAX_FILE_SIZE_MB` | `50` | Max upload size |
-
-### Supported Language Codes
-
-```
-en, hi, bn, te, mr, ta, gu, kn, ml, pa, ur, ne,
-or, as, sa, kok, mai, doi, sd, ks, mni, sat, brx
-```
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Document Upload                          │
-└────────────────────────────┬────────────────────────────────────┘
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    PDF/Image Preprocessing                       │
-│                        (PyMuPDF)                                 │
-└────────────────────────────┬────────────────────────────────────┘
-                             ▼
-     ┌───────────────────────┼───────────────────────┐
-     ▼                       ▼                       ▼
-┌─────────┐           ┌─────────────┐         ┌───────────┐
-│   OCR   │           │   Layout    │         │  Embedded │
-│PaddleOCR│           │  Detection  │         │   Data    │
-└────┬────┘           └──────┬──────┘         └─────┬─────┘
-     │                       │                      │
-     └───────────────────────┼──────────────────────┘
-                             ▼
-     ┌───────────────────────┼───────────────────────┐
-     ▼                       ▼                       ▼
-┌─────────┐           ┌─────────────┐         ┌───────────┐
-│  Table  │           │   Smart     │         │ Key-Value │
-│Camelot  │           │  Chunking   │         │ Extraction│
-└────┬────┘           └──────┬──────┘         └─────┬─────┘
-     │                       │                      │
-     └───────────────────────┼──────────────────────┘
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      Elasticsearch Storage                       │
-│                    (Rich Metadata + Chunks)                      │
-└─────────────────────────────────────────────────────────────────┘
+# Tamil document  
+curl -X POST "http://localhost:8000/api/v1/parse" -F "file=@doc.pdf" -F "language=ta"
 ```
 
 ---
@@ -319,79 +176,41 @@ or, as, sa, kok, mai, doi, sd, ks, mni, sat, brx
 
 ```
 doculens-ai/
-├── docker-compose.yml      # Elasticsearch + FastAPI
-├── Dockerfile             # Python 3.10 + dependencies
-├── requirements.txt       # Python packages
-├── .env.example          # Configuration template
 ├── app/
-│   ├── main.py           # FastAPI application
-│   ├── config.py         # Settings management
-│   ├── models/           # Pydantic models
-│   ├── services/
-│   │   ├── ocr_service.py         # PaddleOCR integration
-│   │   ├── layout_service.py      # Layout detection
-│   │   ├── table_service.py       # Camelot tables
-│   │   ├── chunking_service.py    # Smart chunking
-│   │   ├── kv_extraction.py       # Key-value extraction
-│   │   ├── metadata_service.py    # Embedded data extraction
-│   │   └── elasticsearch_service.py
-│   ├── pipeline/
-│   │   └── document_pipeline.py   # Main orchestrator
-│   └── api/
-│       └── routes.py             # REST endpoints
-└── postman/
-    └── DocuLens_AI.postman_collection.json
+│   ├── main.py                 # FastAPI app
+│   ├── config.py               # Settings
+│   ├── api/routes.py           # API endpoints
+│   ├── pipeline/               # Document pipeline
+│   └── services/
+│       ├── ocr_service.py      # PaddleOCR
+│       ├── table_service.py    # Camelot
+│       ├── kv_extraction.py    # Key-value extraction
+│       ├── chunking_service.py # Smart chunking
+│       └── metadata_service.py # Embedded data
+├── docker-compose.yml
+├── Dockerfile
+├── requirements.txt
+└── postman/                    # API collection
 ```
 
 ---
 
-## 🧪 Testing
+## ⚙️ Configuration
 
-Import the Postman collection for ready-to-use API requests:
-
-```bash
-postman/DocuLens_AI.postman_collection.json
-```
-
----
-
-## 🔧 Development
-
-### Local Setup (Without Docker)
-
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Start Elasticsearch separately
-docker run -d -p 9200:9200 -e "discovery.type=single-node" elasticsearch:9.2.4
-
-# Run the API
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```env
+ELASTICSEARCH_URL=http://localhost:9200
+ELASTICSEARCH_INDEX=documents
+OCR_LANGUAGE=en
+CHUNK_SIZE=512
+CHUNK_OVERLAP=0.1
 ```
 
 ---
 
 ## 📄 License
 
-MIT License - See [LICENSE](LICENSE) for details.
+MIT License
 
 ---
 
-## 🙏 Acknowledgments
-
-- [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) - Multi-language OCR
-- [Camelot](https://github.com/camelot-dev/camelot) - Table extraction
-- [PyMuPDF](https://github.com/pymupdf/PyMuPDF) - PDF processing
-- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python API framework
-- [Elasticsearch](https://www.elastic.co/) - Search and storage
-
----
-
-<p align="center">
-  Made with ❤️ for Indian Document Processing
-</p>
+<p align="center">Made with ❤️ for Indian Document Processing</p>
